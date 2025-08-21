@@ -8,12 +8,29 @@
     :root { --gap: 10px; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 16px; overflow-x: auto; }
     h1 { margin: 0 0 12px; font-size: 20px; }
-    .toolbar { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; margin-bottom: 12px; }
+
+    .toolbar {
+      display: flex;
+      flex-direction: column;      /* stack: hundreds on top, digits below */
+      align-items: flex-start;
+      gap: var(--gap);
+      margin-bottom: 12px;
+    }
+
     .group { border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa; }
     .group h3 { font-size: 14px; margin: 0 0 8px; }
-    .btns { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 6px; max-height: 180px; overflow: auto; }
+
+    /* Static-width selector boxes (no dynamic flex sizing) */
+    .selector { width: 560px; }     /* adjust if you want it wider/narrower */
+
+    /* Grids with fixed column counts for stable layout */
+    .btns { display: grid; gap: 6px; max-height: 180px; overflow: auto; }
+    .btnsHundreds { grid-template-columns: repeat(10, 1fr); }
+    .btnsDigits   { grid-template-columns: repeat(10, 1fr); } /* 0..99 → 10x10 */
+
     button { padding: 6px 10px; border-radius: 8px; border: 1px solid #bbb; background: #fff; cursor: pointer; font-weight: 600; }
     button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
     .card { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
     .imgWrap { position: relative; display: block; background: #f6f7f9; border-radius: 8px; overflow: auto; padding: 8px; }
     img { display: block; height: auto; }
@@ -52,13 +69,16 @@
   </div>
 
   <div class="toolbar">
-    <div class="group" style="flex:1 1 360px; min-width:320px">
-      <h3>Pick the HUNDREDS (0, 100, 200, …)</h3>
-      <div id="hundredsBtns" class="btns"></div>
+    <!-- Hundreds selector (TOP) -->
+    <div class="group selector">
+      <h3>Pick the HUNDREDS (0, 100, …, 900)</h3>
+      <div id="hundredsBtns" class="btns btnsHundreds"></div>
     </div>
-    <div class="group" style="flex:1 1 360px; min-width:320px">
+
+    <!-- Digits selector (BOTTOM) -->
+    <div class="group selector">
       <h3>Pick ID % 100 (0…99)</h3>
-      <div id="modBtns" class="btns"></div>
+      <div id="modBtns" class="btns btnsDigits"></div>
     </div>
   </div>
 
@@ -87,7 +107,6 @@
       B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
     };
     const DIRS = PATHS;
-    const MAX_HUNDREDS_BUTTONS = 200;
 
     let hundreds = 0;
     let mod = 0;
@@ -164,8 +183,9 @@
     }
 
     function buildButtons() {
+      // Hundreds: only 0..900
       const fragH = document.createDocumentFragment();
-      for (let i = 0; i < MAX_HUNDREDS_BUTTONS; i++) {
+      for (let i = 0; i < 10; i++) {               // 10 buttons → 0..900
         const base = i * 100;
         const btn = document.createElement('button');
         btn.textContent = String(base);
@@ -180,6 +200,7 @@
       }
       elHundredsBtns.appendChild(fragH);
 
+      // Mod: 0..99
       const fragM = document.createDocumentFragment();
       for (let j = 0; j < 100; j++) {
         const btn = document.createElement('button');
@@ -200,6 +221,8 @@
       inputHundreds.addEventListener('change', () => {
         const v = Math.max(0, Math.floor(Number(inputHundreds.value) / 100) * 100);
         hundreds = Number.isFinite(v) ? v : 0;
+        // clamp to 0..900
+        if (hundreds > 900) hundreds = 900;
         inputHundreds.value = hundreds;
         setActive(elHundredsBtns, hundreds);
         updateImages();
@@ -222,6 +245,8 @@
       });
       btnNext.addEventListener('click', () => {
         let id = currentId() + 1;
+        // clamp hundreds to 0..900 range
+        if (id > 999) id = 999;
         hundreds = Math.floor(id / 100) * 100; mod = id % 100;
         inputHundreds.value = hundreds; inputMod.value = mod;
         setActive(elHundredsBtns, hundreds); setActive(elModBtns, mod);
