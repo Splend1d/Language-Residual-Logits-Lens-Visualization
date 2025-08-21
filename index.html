@@ -75,18 +75,29 @@
 
   <script>
     // ---- Configuration ----
+    const OWNER = 'Splend1d';
+    const REPO  = 'Language-Residual-Logits-Lens-Visualization';
+    const BRANCH = 'main';
+
+    // Local paths used to show images (served by GitHub Pages)
     const PATHS = {
-      // Using repo folders:
-      // assets/logit-lens-topk/Phi4-Multimodal/<id>.png
-      // assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora/<id>.png
       A: 'assets/logit-lens-topk/Phi4-Multimodal',
       B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
     };
-    const MAX_HUNDREDS_BUTTONS = 200; // creates 0..199 * 100 = up to id 19999; adjust if needed
+
+    // GitHub API directories to list
+    const DIRS = {
+      A: 'assets/logit-lens-topk/Phi4-Multimodal',
+      B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
+    };
+
+    const MAX_HUNDREDS_BUTTONS = 200; // 0..199 * 100
 
     // ---- State ----
     let hundreds = 0;
     let mod = 0;
+    let listA = []; // filenames in A
+    let listB = []; // filenames in B
 
     // ---- DOM ----
     const elHundredsBtns = document.getElementById('hundredsBtns');
@@ -101,6 +112,7 @@
 
     // ---- Helpers ----
     const currentId = () => hundreds + mod;
+    const GH_API_LIST = (path) => `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(BRANCH)}`;
 
     function setActive(container, idx) {
       [...container.querySelectorAll('button')].forEach(b => b.classList.remove('active'));
@@ -121,31 +133,44 @@
       setActive(elModBtns, mod);
     }
 
+    function findById(files, id) {
+      // Match e.g. 101_POD1000000044_S0000197.png or id_*.png
+      const re = new RegExp(`^${id}[_-].*\.png$`, 'i');
+      return files.find(f => re.test(f)) || null;
+    }
+
     function updateImages() {
       const id = currentId();
       elCurId.textContent = id;
-      window.location.hash = String(id); // shareable URL
+      window.location.hash = String(id);
 
-      // show loading placeholders
-      imgA.removeAttribute('src');
-      imgB.removeAttribute('src');
+      const fnameA = findById(listA, id);
+      const fnameB = findById(listB, id);
 
-      const srcA = `${PATHS.A}/${id}.png`;
-      const srcB = `${PATHS.B}/${id}.png`;
+      if (!fnameA && !fnameB) {
+        imgA.removeAttribute('src');
+        imgB.removeAttribute('src');
+        imgA.alt = imgB.alt = `No file matched id ${id}`;
+        return;
+      }
 
-      const onErr = (img, src) => () => {
-        img.alt = `Not found: ${src}`;
-        img.style.opacity = 0.6;
-      };
-      const onOk = (img) => () => { img.style.opacity = 1; };
+      if (fnameA) {
+        const srcA = `${PATHS.A}/${fnameA}`;
+        imgA.src = srcA;
+        imgA.alt = srcA;
+      } else {
+        imgA.removeAttribute('src');
+        imgA.alt = `Not found in A for id ${id}`;
+      }
 
-      imgA.addEventListener('error', onErr(imgA, srcA), { once: true });
-      imgB.addEventListener('error', onErr(imgB, srcB), { once: true });
-      imgA.addEventListener('load', onOk(imgA), { once: true });
-      imgB.addEventListener('load', onOk(imgB), { once: true });
-
-      imgA.src = srcA;
-      imgB.src = srcB;
+      if (fnameB) {
+        const srcB = `${PATHS.B}/${fnameB}`;
+        imgB.src = srcB;
+        imgB.alt = srcB;
+      } else {
+        imgB.removeAttribute('src');
+        imgB.alt = `Not found in B for id ${id}`;
+      }
     }
 
     function buildButtons() {
@@ -216,13 +241,40 @@
       });
     }
 
-    // Init
-    buildButtons();
-    setIdFromHashIfAny();
-    setActive(elHundredsBtns, hundreds);
-    setActive(elModBtns, mod);
-    wireInputs();
-    updateImages();
+    async function fetchDir(path) {
+      const url = GH_API_LIST(path);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to list ${path}: ${res.status}`);
+      const data = await res.json();
+      // data: [{name, path, type, ...}]
+      return data.filter(x => x.type === 'file' && /\.png$/i.test(x.name)).map(x => x.name);
+    }
+
+    async function init() {
+      buildButtons();
+      setIdFromHashIfAny();
+      setActive(elHundredsBtns, hundreds);
+      setActive(elModBtns, mod);
+      wireInputs();
+
+      try {
+        [listA, listB] = await Promise.all([
+          fetchDir(DIRS.A),
+          fetchDir(DIRS.B)
+        ]);
+      } catch (e) {
+        console.error(e);
+        // If the API is rate-limited or blocked, show a hint
+        const note = document.createElement('div');
+        note.className = 'muted';
+        note.textContent = 'Note: Could not list directory via GitHub API (rate limit or private repo). You may need to refresh later.';
+        document.body.prepend(note);
+      }
+
+      updateImages();
+    }
+
+    init();
   </script>
 </body>
 </html>
