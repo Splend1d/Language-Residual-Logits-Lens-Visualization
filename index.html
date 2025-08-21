@@ -14,11 +14,9 @@
     .btns { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 6px; max-height: 180px; overflow: auto; }
     button { padding: 6px 10px; border-radius: 8px; border: 1px solid #bbb; background: #fff; cursor: pointer; font-weight: 600; }
     button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .row { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
-    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; background: #fff; }
-    .card h2 { margin: 0 0 8px; font-size: 16px; }
-    .imgWrap { position: relative; min-height: 0; display: block; background: #f6f7f9; border-radius: 8px; overflow: auto; padding: 8px; }
-    img { display: block; height: auto; /* show at natural pixel size (no scaling) */ }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+    .imgWrap { position: relative; display: block; background: #f6f7f9; border-radius: 8px; overflow: auto; padding: 8px; }
+    img { display: block; height: auto; }
     .muted { color: #6b7280; font-size: 12px; }
     .flex { display: flex; gap: 8px; align-items: center; }
     .spacer { flex: 1 1 auto; }
@@ -27,7 +25,11 @@
     .stickyBar { position: sticky; top: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(4px); border-bottom: 1px solid #eee; padding-bottom: 8px; z-index: 10; }
     .controls { display: flex; gap: 8px; flex-wrap: wrap; }
     .input { width: 100px; padding: 6px 8px; border: 1px solid #bbb; border-radius: 8px; }
-    @media (max-width: 960px) { .row { grid-template-columns: 1fr; } }
+    .tabs { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 8px; }
+    .tab { padding: 8px 12px; cursor: pointer; border: 1px solid #ddd; border-bottom: none; background: #f3f4f6; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+    .tab.active { background: #fff; font-weight: bold; }
+    .tabContent { display: none; }
+    .tabContent.active { display: block; }
   </style>
 </head>
 <body>
@@ -60,46 +62,38 @@
     </div>
   </div>
 
-  <div class="row">
-    <div class="card">
-      <h2>Phi4-Multimodal</h2>
-      <div class="imgWrap"><img id="imgA" alt="Phi4 image" /></div>
-      <div class="muted footer">From <span class="kbd">assets/logits-lens/Phi4/&lt;id&gt;.png</span></div>
+  <div class="card">
+    <div class="tabs">
+      <div id="tabA" class="tab active">Phi4-Multimodal</div>
+      <div id="tabB" class="tab">Phi4-Multimodal-noaudio-nolora</div>
     </div>
-    <div class="card">
-      <h2>Phi4-Multimodal-noaudio-nolora</h2>
-      <div class="imgWrap"><img id="imgB" alt="Phi4-noaudio-nolora image" /></div>
-      <div class="muted footer">From <span class="kbd">assets/logits-lens/Phi4-noaudio-nolora/&lt;id&gt;.png</span></div>
+    <div id="contentA" class="tabContent active">
+      <div class="imgWrap"><img id="imgA" alt="Phi4-Multimodal image" /></div>
+      <div class="muted footer">From <span class="kbd">assets/logit-lens-topk/Phi4-Multimodal/&lt;id&gt;.png</span></div>
+    </div>
+    <div id="contentB" class="tabContent">
+      <div class="imgWrap"><img id="imgB" alt="Phi4-Multimodal-noaudio-nolora image" /></div>
+      <div class="muted footer">From <span class="kbd">assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora/&lt;id&gt;.png</span></div>
     </div>
   </div>
 
   <script>
-    // ---- Configuration ----
     const OWNER = 'Splend1d';
     const REPO  = 'Language-Residual-Logits-Lens-Visualization';
     const BRANCH = 'main';
 
-    // Local paths used to show images (served by GitHub Pages)
     const PATHS = {
       A: 'assets/logit-lens-topk/Phi4-Multimodal',
       B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
     };
+    const DIRS = PATHS;
+    const MAX_HUNDREDS_BUTTONS = 200;
 
-    // GitHub API directories to list
-    const DIRS = {
-      A: 'assets/logit-lens-topk/Phi4-Multimodal',
-      B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
-    };
-
-    const MAX_HUNDREDS_BUTTONS = 200; // 0..199 * 100
-
-    // ---- State ----
     let hundreds = 0;
     let mod = 0;
-    let listA = []; // filenames in A
-    let listB = []; // filenames in B
+    let listA = [];
+    let listB = [];
 
-    // ---- DOM ----
     const elHundredsBtns = document.getElementById('hundredsBtns');
     const elModBtns = document.getElementById('modBtns');
     const elCurId = document.getElementById('curId');
@@ -110,7 +104,11 @@
     const btnPrev = document.getElementById('prev');
     const btnNext = document.getElementById('next');
 
-    // ---- Helpers ----
+    const tabA = document.getElementById('tabA');
+    const tabB = document.getElementById('tabB');
+    const contentA = document.getElementById('contentA');
+    const contentB = document.getElementById('contentB');
+
     const currentId = () => hundreds + mod;
     const GH_API_LIST = (path) => `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(BRANCH)}`;
 
@@ -134,8 +132,7 @@
     }
 
     function findById(files, id) {
-      // Match e.g. 101_POD1000000044_S0000197.png or id_*.png
-      const re = new RegExp(`^${id}[_-].*\.png$`, 'i');
+      const re = new RegExp(`^${id}[_-].*\\.png$`, 'i');
       return files.find(f => re.test(f)) || null;
     }
 
@@ -146,13 +143,6 @@
 
       const fnameA = findById(listA, id);
       const fnameB = findById(listB, id);
-
-      if (!fnameA && !fnameB) {
-        imgA.removeAttribute('src');
-        imgB.removeAttribute('src');
-        imgA.alt = imgB.alt = `No file matched id ${id}`;
-        return;
-      }
 
       if (fnameA) {
         const srcA = `${PATHS.A}/${fnameA}`;
@@ -174,7 +164,6 @@
     }
 
     function buildButtons() {
-      // Hundreds buttons: 0, 100, 200, ...
       const fragH = document.createDocumentFragment();
       for (let i = 0; i < MAX_HUNDREDS_BUTTONS; i++) {
         const base = i * 100;
@@ -191,7 +180,6 @@
       }
       elHundredsBtns.appendChild(fragH);
 
-      // Mod buttons: 0..99
       const fragM = document.createDocumentFragment();
       for (let j = 0; j < 100; j++) {
         const btn = document.createElement('button');
@@ -239,6 +227,19 @@
         setActive(elHundredsBtns, hundreds); setActive(elModBtns, mod);
         updateImages();
       });
+
+      tabA.addEventListener('click', () => {
+        tabA.classList.add('active');
+        tabB.classList.remove('active');
+        contentA.classList.add('active');
+        contentB.classList.remove('active');
+      });
+      tabB.addEventListener('click', () => {
+        tabB.classList.add('active');
+        tabA.classList.remove('active');
+        contentB.classList.add('active');
+        contentA.classList.remove('active');
+      });
     }
 
     async function fetchDir(path) {
@@ -246,7 +247,6 @@
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to list ${path}: ${res.status}`);
       const data = await res.json();
-      // data: [{name, path, type, ...}]
       return data.filter(x => x.type === 'file' && /\.png$/i.test(x.name)).map(x => x.name);
     }
 
@@ -264,10 +264,9 @@
         ]);
       } catch (e) {
         console.error(e);
-        // If the API is rate-limited or blocked, show a hint
         const note = document.createElement('div');
         note.className = 'muted';
-        note.textContent = 'Note: Could not list directory via GitHub API (rate limit or private repo). You may need to refresh later.';
+        note.textContent = 'Note: Could not list directory via GitHub API (rate limit or private repo).';
         document.body.prepend(note);
       }
 
