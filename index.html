@@ -86,6 +86,7 @@
     <div class="tabs">
       <div id="tabA" class="tab active">Phi4-Multimodal</div>
       <div id="tabB" class="tab">Phi4-Multimodal-noaudio-nolora</div>
+      <div id="tabC" class="tab">Phi4-Multimodal-nolora</div>
     </div>
     <div id="contentA" class="tabContent active">
       <div class="imgWrap"><img id="imgA" alt="Phi4-Multimodal image" /></div>
@@ -94,6 +95,10 @@
     <div id="contentB" class="tabContent">
       <div class="imgWrap"><img id="imgB" alt="Phi4-Multimodal-noaudio-nolora image" /></div>
       <div class="muted footer">From <span class="kbd">assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora/&lt;id&gt;.png</span></div>
+    </div>
+    <div id="contentC" class="tabContent">
+      <div class="imgWrap"><img id="imgC" alt="Phi4-Multimodal-nolora image" /></div>
+      <div class="muted footer">From <span class="kbd">assets/Phi4-Multimodal-nolora/&lt;id&gt;.png</span></div>
     </div>
   </div>
 
@@ -104,7 +109,8 @@
 
     const PATHS = {
       A: 'assets/logit-lens-topk/Phi4-Multimodal',
-      B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora'
+      B: 'assets/logit-lens-topk/Phi4-Multimodal-noaudio-nolora',
+      C: 'assets/Phi4-Multimodal-nolora'
     };
     const DIRS = PATHS;
 
@@ -112,12 +118,14 @@
     let mod = 0;
     let listA = [];
     let listB = [];
+    let listC = [];
 
     const elHundredsBtns = document.getElementById('hundredsBtns');
     const elModBtns = document.getElementById('modBtns');
     const elCurId = document.getElementById('curId');
     const imgA = document.getElementById('imgA');
     const imgB = document.getElementById('imgB');
+    const imgC = document.getElementById('imgC');
     const inputHundreds = document.getElementById('hundreds');
     const inputMod = document.getElementById('mod');
     const btnPrev = document.getElementById('prev');
@@ -125,8 +133,10 @@
 
     const tabA = document.getElementById('tabA');
     const tabB = document.getElementById('tabB');
+    const tabC = document.getElementById('tabC');
     const contentA = document.getElementById('contentA');
     const contentB = document.getElementById('contentB');
+    const contentC = document.getElementById('contentC');
 
     const currentId = () => hundreds + mod;
     const GH_API_LIST = (path) => `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(BRANCH)}`;
@@ -162,6 +172,7 @@
 
       const fnameA = findById(listA, id);
       const fnameB = findById(listB, id);
+      const fnameC = findById(listC, id);
 
       if (fnameA) {
         const srcA = `${PATHS.A}/${fnameA}`;
@@ -179,6 +190,15 @@
       } else {
         imgB.removeAttribute('src');
         imgB.alt = `Not found in B for id ${id}`;
+      }
+
+      if (fnameC) {
+        const srcC = `${PATHS.C}/${fnameC}`;
+        imgC.src = srcC;
+        imgC.alt = srcC;
+      } else {
+        imgC.removeAttribute('src');
+        imgC.alt = `Not found in C for id ${id}`;
       }
     }
 
@@ -253,18 +273,22 @@
         updateImages();
       });
 
-      tabA.addEventListener('click', () => {
-        tabA.classList.add('active');
-        tabB.classList.remove('active');
-        contentA.classList.add('active');
-        contentB.classList.remove('active');
-      });
-      tabB.addEventListener('click', () => {
-        tabB.classList.add('active');
-        tabA.classList.remove('active');
-        contentB.classList.add('active');
-        contentA.classList.remove('active');
-      });
+      const showA = () => {
+        tabA.classList.add('active'); tabB.classList.remove('active'); tabC.classList.remove('active');
+        contentA.classList.add('active'); contentB.classList.remove('active'); contentC.classList.remove('active');
+      };
+      const showB = () => {
+        tabB.classList.add('active'); tabA.classList.remove('active'); tabC.classList.remove('active');
+        contentB.classList.add('active'); contentA.classList.remove('active'); contentC.classList.remove('active');
+      };
+      const showC = () => {
+        tabC.classList.add('active'); tabA.classList.remove('active'); tabB.classList.remove('active');
+        contentC.classList.add('active'); contentA.classList.remove('active'); contentB.classList.remove('active');
+      };
+
+      tabA.addEventListener('click', showA);
+      tabB.addEventListener('click', showB);
+      tabC.addEventListener('click', showC);
     }
 
     async function fetchDir(path) {
@@ -283,9 +307,10 @@
       wireInputs();
 
       try {
-        [listA, listB] = await Promise.all([
+        [listA, listB, listC] = await Promise.all([
           fetchDir(DIRS.A),
-          fetchDir(DIRS.B)
+          fetchDir(DIRS.B),
+          fetchDir(DIRS.C)
         ]);
       } catch (e) {
         console.error(e);
@@ -302,4 +327,3 @@
   </script>
 </body>
 </html>
-
